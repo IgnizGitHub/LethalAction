@@ -74,7 +74,7 @@ namespace LethalAction
                     NewMurder.victimID = victim.animationController.cit.humanID;
                     NewMurder.murderer = Player.Instance;
                     NewMurder.murdererID = Player.Instance.humanID;
-                    NewMurder.location = victim.animationController.cit.currentGameLocation;
+                    NewMurder.location = victim.animationController.cit.currentGameLocation.thisAsAddress;
                     //Previously when I used to one hit kill enemies for testing their animations were funky, leaving in-case it needs to be re-added.
                     //victim.animationController.SetPauseAnimation(true);
                     //victim.animationController.SetRagdoll(true, true);
@@ -103,12 +103,12 @@ namespace LethalAction
                 {
                     if (newLocation.nodes.Contains(v))
                     {
-                       // Debug.Log("contains Node");
+                        Debug.Log("contains Node");
                         foreach (var z in MurderController.Instance.activeMurders)
                         {
                             if (z.location == newLocation && z.murderer != Player.Instance)
                             {
-                              //  Debug.Log("contains Node, but is also real murder");
+                                Debug.Log("contains Node, but is also real murder");
                                 return true;
                             }
                         }
@@ -119,17 +119,18 @@ namespace LethalAction
             }
         }
         //Method for toggling game logs, patch itself borrowed from CitySize mod.
-
-        /*[HarmonyPatch(typeof(MainMenuController), "OnChangeCityGenerationOption")]
+        /*
+        [HarmonyPatch(typeof(MainMenuController), "OnChangeCityGenerationOption")]
         public class MainMenuController_OnChangeCityGenerationOption
         {
             public static void Postfix(MainMenuController __instance)
             {
-              //  Game.Instance.printDebug = true;
-              //  Game.Instance.debugPrintLevel = 2;
+                Game.Instance.printDebug = true;
+                Game.Instance.debugPrintLevel = 2;
             }
-        */
 
+        }
+        */
 
         //This is to prevent the player from starting a new murder case themselves, the logic is calculated in the VictimSearch patch
         //Not really the optimal way to do this, please PR a better way if you can.
@@ -206,6 +207,82 @@ namespace LethalAction
                 if (__instance.currentHealth <= 0)
                 {
                     LethalAction(__instance);
+                }
+            }
+        }
+        //Somewhere in the SaveState it hates having multiple sets of murder classes, so we have to pretend our murder is solved to avoid loading issues
+        [HarmonyPatch(typeof(SaveStateController), "CaptureSaveState")]
+        public class FixSavesPre
+        {
+            public static void Prefix()
+            {
+                foreach (var murder in MurderController.Instance.activeMurders)
+                {
+                    if (murder.murderer == Player.Instance)
+                    {
+                        MurderController.Instance.inactiveMurders.Add(murder);
+                        murder.state = MurderController.MurderState.solved;
+                    }
+                }
+                foreach (var murder in MurderController.Instance.inactiveMurders)
+                {
+                    if (murder.murderer == Player.Instance)
+                    {
+                        MurderController.Instance.activeMurders.Remove(murder);
+                    }
+                }
+            }
+        }
+        //This reverts the previous patch so that the game you're currently in will still be able to report the body.
+        [HarmonyPatch(typeof(SaveStateController), "CaptureSaveState")]
+        public class FixSavesPost
+        {
+            public static void Postfix()
+            {
+                foreach (var murder in MurderController.Instance.inactiveMurders)
+                {
+                    if (murder.murderer == Player.Instance)
+                    {
+                        MurderController.Instance.activeMurders.Add(murder);
+                        murder.state = MurderController.MurderState.waitForLocation;
+                    }
+                }
+                foreach (var murder in MurderController.Instance.activeMurders)
+                {
+                    if (murder.murderer == Player.Instance)
+                    {
+                        MurderController.Instance.inactiveMurders.Remove(murder);
+                    }
+                }
+            }
+        }
+        //This patch runs after load to try and fix several potential issues with loading into a game.
+        //Some of this may be pointless or redundant, but I'd rather that than errors.
+        [HarmonyPatch(typeof(MainMenuController), "FadeMenu")]
+        public class FixSavesLoad
+        {
+            public static void Postfix()
+            {
+                PKBodies.Clear();
+                foreach (var murder in MurderController.Instance.inactiveMurders)
+                {
+                    if (murder.murderer == Player.Instance)
+                    {
+                        MurderController.Instance.activeMurders.Add(murder);
+                        CityData.Instance.deadCitizensDirectory.Add(murder.victim);
+                        murder.mo = new MurderMO();
+                        murder.location = murder.victim.animationController.cit.currentGameLocation.thisAsAddress;
+                        murder.state = MurderController.MurderState.waitForLocation;
+                        murder.activeMurderItems = new Dictionary<JobPreset.JobTag, Interactable>();
+                    }
+                }
+                foreach (var murder in MurderController.Instance.activeMurders)
+                {
+                    if (murder.murderer == Player.Instance)
+                    {
+                        PKBodies.Add(murder.victim.currentNode);
+                        MurderController.Instance.inactiveMurders.Remove(murder);
+                    }
                 }
             }
         }
