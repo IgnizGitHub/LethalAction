@@ -1,7 +1,7 @@
 # LethalAction
 Shadows of Doubt mod for allowing the player to kill Citizens.
 
-This the is the source-code for said mod and also the [current download](https://github.com/IgnizGitHub/LethalAction/releases/tag/v1.0.0) area. 
+This the is the source-code for said mod and also a [download](https://github.com/IgnizGitHub/LethalAction/releases/tag/v1.0.0) area. 
 
 When Citizens are stunned (knocked out), you can hit them with weapons, thrown items, and etc to kill them. 
 
